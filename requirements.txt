@@ -3,6 +3,7 @@ future==1.0.0
 iso8601==2.1.0
 luma.core==2.4.2
 luma.lcd==2.11.0
+luma.oled==3.14.0
 pillow==11.1.0
 pyftdi==0.56.0
 pyserial==3.5
