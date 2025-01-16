@@ -1,12 +1,12 @@
 import time
 from luma.core.interface.serial import spi
-from luma.lcd.device import st7920
+from luma.oled.device import sh1106
 from luma.core.render import canvas
 
 class ST7920Display:
     def __init__(self, port=0, device=0, gpio_RST=25):
         self.serial = spi(port=port, device=device, gpio_RST=gpio_RST)
-        self.device = st7920(self.serial, width=128, height=64)
+        self.device = sh1106(self.serial, width=128, height=64)
 
     def clear(self):
         self.device.clear()
