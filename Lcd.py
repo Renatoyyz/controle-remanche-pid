@@ -88,109 +88,95 @@ Rs = 0b00000001 # Register select bit
 
 class lcd:
    #initializes objects and lcd
-   def __init__(self):
-      self.lcd_device = i2c_device(ADDRESS)
+    def __init__(self):
+        self.lcd_device = i2c_device(ADDRESS)
 
-      self.lcd_write(0x03)
-      self.lcd_write(0x03)
-      self.lcd_write(0x03)
-      self.lcd_write(0x02)
+        self.lcd_write(0x03)
+        self.lcd_write(0x03)
+        self.lcd_write(0x03)
+        self.lcd_write(0x02)
 
-      self.lcd_write(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
-      self.lcd_write(LCD_DISPLAYCONTROL | LCD_DISPLAYON)
-      self.lcd_write(LCD_CLEARDISPLAY)
-      self.lcd_write(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
-      sleep(0.2)
+        self.lcd_write(LCD_FUNCTIONSET | LCD_2LINE | LCD_5x8DOTS | LCD_4BITMODE)
+        self.lcd_write(LCD_DISPLAYCONTROL | LCD_DISPLAYON)
+        self.lcd_write(LCD_CLEARDISPLAY)
+        self.lcd_write(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
+        sleep(0.2)
 
 
-   # clocks EN to latch command
-   def lcd_strobe(self, data):
-      self.lcd_device.write_cmd(data | En | LCD_BACKLIGHT)
-      sleep(.0005)
-      self.lcd_device.write_cmd(((data & ~En) | LCD_BACKLIGHT))
-      sleep(.0001)
+    # clocks EN to latch command
+    def lcd_strobe(self, data):
+        self.lcd_device.write_cmd(data | En | LCD_BACKLIGHT)
+        sleep(.0005)
+        self.lcd_device.write_cmd(((data & ~En) | LCD_BACKLIGHT))
+        sleep(.0001)
 
-   def lcd_write_four_bits(self, data):
-      self.lcd_device.write_cmd(data | LCD_BACKLIGHT)
-      self.lcd_strobe(data)
+    def lcd_write_four_bits(self, data):
+        self.lcd_device.write_cmd(data | LCD_BACKLIGHT)
+        self.lcd_strobe(data)
 
-   # write a command to lcd
-   def lcd_write(self, cmd, mode=0):
-      self.lcd_write_four_bits(mode | (cmd & 0xF0))
-      self.lcd_write_four_bits(mode | ((cmd << 4) & 0xF0))
+    # write a command to lcd
+    def lcd_write(self, cmd, mode=0):
+        self.lcd_write_four_bits(mode | (cmd & 0xF0))
+        self.lcd_write_four_bits(mode | ((cmd << 4) & 0xF0))
 
-   # write a character to lcd (or character rom) 0x09: backlight | RS=DR<
-   # works!
-   def lcd_write_char(self, charvalue, mode=1):
-      self.lcd_write_four_bits(mode | (charvalue & 0xF0))
-      self.lcd_write_four_bits(mode | ((charvalue << 4) & 0xF0))
+    # write a character to lcd (or character rom) 0x09: backlight | RS=DR<
+    # works!
+    def lcd_write_char(self, charvalue, mode=1):
+        self.lcd_write_four_bits(mode | (charvalue & 0xF0))
+        self.lcd_write_four_bits(mode | ((charvalue << 4) & 0xF0))
   
-   # put string function with optional char positioning
-   def lcd_display_string(self, string, line=1, pos=0):
-    if line == 1:
-      pos_new = pos
-    elif line == 2:
-      pos_new = 0x40 + pos
-    elif line == 3:
-      pos_new = 0x14 + pos
-    elif line == 4:
-      pos_new = 0x54 + pos
+    # put string function with optional char positioning
+    def lcd_display_string(self, string, line=1, pos=0):
+        if line == 1:
+            pos_new = pos
+        elif line == 2:
+            pos_new = 0x40 + pos
+        elif line == 3:
+            pos_new = 0x14 + pos
+        elif line == 4:
+            pos_new = 0x54 + pos
 
-    self.lcd_write(0x80 + pos_new)
+        self.lcd_write(0x80 + pos_new)
 
-    for char in string:
-      self.lcd_write(ord(char), Rs)
+        for char in string:
+            self.lcd_write(ord(char), Rs)
 
-   # clear lcd and set to home
-   def lcd_clear(self):
-      self.lcd_write(LCD_CLEARDISPLAY)
-      self.lcd_write(LCD_RETURNHOME)
+    # clear lcd and set to home
+    def lcd_clear(self):
+        self.lcd_write(LCD_CLEARDISPLAY)
+        self.lcd_write(LCD_RETURNHOME)
 
-   # define backlight on/off (lcd.backlight(1); off= lcd.backlight(0)
-   def backlight(self, state): # for state, 1 = on, 0 = off
-      if state == 1:
-         self.lcd_device.write_cmd(LCD_BACKLIGHT)
-      elif state == 0:
-         self.lcd_device.write_cmd(LCD_NOBACKLIGHT)
+    # define backlight on/off (lcd.backlight(1); off= lcd.backlight(0)
+    def backlight(self, state): # for state, 1 = on, 0 = off
+        if state == 1:
+            self.lcd_device.write_cmd(LCD_BACKLIGHT)
+        elif state == 0:
+            self.lcd_device.write_cmd(LCD_NOBACKLIGHT)
 
-   # add custom characters (0 - 7)
-   def lcd_load_custom_chars(self, fontdata):
-      self.lcd_write(0x40);
-      for char in fontdata:
-         for line in char:
-            self.lcd_write_char(line)     
+    # add custom characters (0 - 7)
+    def lcd_load_custom_chars(self, fontdata):
+        self.lcd_write(0x40);
+        for char in fontdata:
+            for line in char:
+                self.lcd_write_char(line) 
+
+        
 
 if __name__ == "__main__":
-
-    #Programa: Display LCD I2C com Raspberry Pi
-    #Autor: Arduino e Cia
-    import socket
-    import fcntl
-    import struct
     import time
 
     lcdi2c = lcd()
 
     #Exibe informacoes iniciais
-    lcdi2c.lcd_display_string("Arduino e Cia", 1,1)
-    lcdi2c.lcd_display_string("LCD I2C e RPi", 2,1)
+    lcdi2c.lcd_display_string("Renato Oliveira", 1,1)
+    # lcdi2c.lcd_display_string("Katia Amor", 2,1)
+    # Mostra uma string com fundo invertido
+    lcdi2c.lcd_display_string_inverter("Katia Amor", 2, 1)
     time.sleep(4)
 
     #Apaga o display
-    lcdi2c.lcd_clear()
-
-    def get_ip_address(ifname):
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        return socket.inet_ntoa(fcntl.ioctl(
-            s.fileno(),
-            0x8915, 
-            struct.pack('256s', ifname[:15])
-        )[20:24])
-
-    #Mostra o endereco IP
-    lcdi2c.lcd_display_string("IP", 1)
-    lcdi2c.lcd_display_string(get_ip_address('wlan0'), 1,3)
-    
+    # lcdi2c.lcd_clear() 
     while True:
     #Mostra a data no display
-        lcdi2c.lcd_display_string("Data: %s" %time.strftime("%d/%m/%y"), 2,1)    
+        lcdi2c.lcd_display_string("Data: %s" %time.strftime("%d/%m/%y"), 3,1)
+        lcdi2c.lcd_display_string("Hora: %s" %time.strftime("%H/%M/%S"), 4,1)
