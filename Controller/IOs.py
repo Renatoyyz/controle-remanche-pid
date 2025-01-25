@@ -1,6 +1,7 @@
 import serial
 import time
 import random
+import threading
 
 class FakeRPiGPIO:
     BCM = "BCM"
@@ -39,12 +40,15 @@ class FakeRPiGPIO:
 
 class InOut:
     def __init__(self):
-        self.SAIDA_PWM = 10
-        self.SINALEIRO_VERDE = 13
-        self.SINALEIRO_VERMELHO = 19
-        self.BOTAO_EMERGENCIA = 23
-        self.BOT_ACIO_E = 22
-        self.BOT_ACIO_D = 24
+        self.SAIDA_PWM_1 = 12
+        self.SAIDA_PWM_2 = 13
+        self.SAIDA_PWM_3 = 19
+        self.SAIDA_PWM_4 = 16
+        
+        self.BOTAO_EMERGENCIA = 22
+        self.BOT_ENCODER_CLK = 23
+        self.BOT_ENCODER_DT = 24
+        self.BOT_ENCODER_SW = 10
 
         self.RELE_4 = 16
 
@@ -58,25 +62,60 @@ class InOut:
         self.GPIO.setmode(self.GPIO.BCM)
         self.GPIO.setwarnings(False)
 
-        self.GPIO.setup(self.BOT_ACIO_E, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
-        self.GPIO.setup(self.BOT_ACIO_D, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
-
+        self.GPIO.setup(self.BOT_ENCODER_CLK, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
+        self.GPIO.setup(self.BOT_ENCODER_DT, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
+        self.GPIO.setup(self.BOT_ENCODER_SW, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
 
         self.GPIO.setup(self.BOTAO_EMERGENCIA, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
 
-        self.GPIO.setup(self.SAIDA_PWM,  self.GPIO.OUT)
+        self.GPIO.setup(self.SAIDA_PWM_1,  self.GPIO.OUT)
+        self.GPIO.setup(self.SAIDA_PWM_2,  self.GPIO.OUT)
+        self.GPIO.setup(self.SAIDA_PWM_3,  self.GPIO.OUT)
+        self.GPIO.setup(self.SAIDA_PWM_4,  self.GPIO.OUT)
         self.GPIO.setup(self.RELE_4, self.GPIO.OUT)
-        self.GPIO.setup(self.SINALEIRO_VERDE, self.GPIO.OUT)
-        self.GPIO.setup(self.SINALEIRO_VERMELHO, self.GPIO.OUT)
+
+        self.pwm_period = 1.0  # Default period in seconds
+        self.pwm_duty_cycles = {
+            self.SAIDA_PWM_1: 0,
+            self.SAIDA_PWM_2: 0,
+            self.SAIDA_PWM_3: 0,
+            self.SAIDA_PWM_4: 0
+        }
+
+        self.pwm_thread = threading.Thread(target=self._pwm_control)
+        self.pwm_thread.daemon = True
+        self.pwm_thread.start()
+
+    def _pwm_control(self):
+        while True:
+            for pin, duty_cycle in self.pwm_duty_cycles.items():
+                on_time = self.pwm_period * (duty_cycle / 100.0)
+                off_time = self.pwm_period - on_time
+                if on_time > 0:
+                    self.GPIO.output(pin, self.GPIO.LOW)
+                    time.sleep(on_time)
+                if off_time > 0:
+                    self.GPIO.output(pin, self.GPIO.HIGH)
+                    time.sleep(off_time)
+
+    def set_pwm_period(self, period):
+        self.pwm_period = period
+
+    def set_pwm_duty_cycle(self, pin, duty_cycle):
+        if pin in self.pwm_duty_cycles:
+            self.pwm_duty_cycles[pin] = duty_cycle
 
     @property
-    # off_app
-    def bot_acio_e(self):
-        return self.GPIO.input(self.BOT_ACIO_E)
+    def bot_encoder_clk(self):
+        return self.GPIO.input(self.BOT_ENCODER_CLK)
 
     @property
-    def bot_acio_d(self):
-        return self.GPIO.input(self.BOT_ACIO_D)
+    def bot_encoder_dt(self):
+        return self.GPIO.input(self.BOT_ENCODER_DT)
+    
+    @property
+    def bot_encoder_sw(self):
+        return self.GPIO.input(self.BOT_ENCODER_SW)
 
     @property
     def bot_emergencia(self):
@@ -88,24 +127,16 @@ class InOut:
         else:
             self.GPIO.output(self.RELE_4,0)
 
-    def sinaleiro_verde(self):
-        self.GPIO.output(self.SINALEIRO_VERMELHO, 1)
-        self.GPIO.output(self.SINALEIRO_VERDE, 0)
+    def aciona_pwm(self, duty_cycle, saida):
+        if saida == 1:
+            self.set_pwm_duty_cycle(self.SAIDA_PWM_1, duty_cycle)
+        elif saida == 2:
+            self.set_pwm_duty_cycle(self.SAIDA_PWM_2, duty_cycle)
+        elif saida == 3:
+            self.set_pwm_duty_cycle(self.SAIDA_PWM_3, duty_cycle)
+        elif saida == 4:
+            self.set_pwm_duty_cycle(self.SAIDA_PWM_4, duty_cycle)
 
-    def sinaleiro_vermelho(self):
-        self.GPIO.output(self.SINALEIRO_VERDE, 1)
-        self.GPIO.output(self.SINALEIRO_VERMELHO, 0)
-
-    def desliga_torre(self):
-        self.GPIO.output(self.SINALEIRO_VERDE, 1)
-        self.GPIO.output(self.SINALEIRO_VERMELHO, 1)
-
-    def aciona_pwm(self, status):
-        if status == 1:
-            self.GPIO.output(self.SAIDA_PWM,1)
-        else:
-            self.GPIO.output(self.SAIDA_PWM,0)
-        
 class IO_MODBUS:
     def __init__(self, dado=None):
 
@@ -166,9 +197,9 @@ class IO_MODBUS:
             # return random.randint(0,1)
             return self.dado.passa_condutividade  if input == 8 else self.dado.passa_isolacao
         
-    def get_temperature(self, adr):
+    def get_temperature_channel(self, adr):
         if self.fake_modbus == False:
-            pass
+            return 0
     
     def reset_serial(self):
         try:

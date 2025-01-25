@@ -160,26 +160,6 @@ class lcd:
             for line in char:
                 self.lcd_write_char(line) 
 
-    # put string function with inverted background
-    def lcd_display_string_inverter(self, string, line=1, pos=0):
-        if line == 1:
-            pos_new = pos
-        elif line == 2:
-            pos_new = 0x40 + pos
-        elif line == 3:
-            pos_new = 0x14 + pos
-        elif line == 4:
-            pos_new = 0x54 + pos
-
-        self.lcd_write(0x80 + pos_new)
-
-        # Turn off backlight to simulate inverted background
-        self.backlight(0)
-        for char in string:
-            self.lcd_write(ord(char), Rs)
-        # Turn on backlight after writing the string
-        self.backlight(1)
-
         
 
 if __name__ == "__main__":
@@ -189,9 +169,7 @@ if __name__ == "__main__":
 
     #Exibe informacoes iniciais
     lcdi2c.lcd_display_string("Renato Oliveira", 1,1)
-    # lcdi2c.lcd_display_string("Katia Amor", 2,1)
-    # Mostra uma string com fundo invertido
-    lcdi2c.lcd_display_string_inverter("Katia Amor", 2, 1)
+    lcdi2c.lcd_display_string("Katia Amor", 2,1)
     time.sleep(4)
 
     #Apaga o display
