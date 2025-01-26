@@ -3,7 +3,7 @@ import time
 from IOs import IO_MODBUS
 
 class PIDController:
-    def __init__(self, kp, ki, kd, setpoint, io_modbus, adr = [1,2,3,4]):
+    def __init__(self, kp, ki, kd, setpoint, io_modbus, adr = [1,2,3,4,5,6]):
         self.kp = kp
         self.ki = ki
         self.kd = kd
@@ -36,13 +36,17 @@ class PIDController:
                 pid_output = self.compute(current_value)
                 pwm_value = max(0, min(100, pid_output))  # Ensure PWM value is between 0 and 100
                 if adr == 1:
-                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=1)
+                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=1 )
                 elif adr == 2:
-                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=2)
+                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=2 )
                 elif adr == 3:
-                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=3)
+                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=3 )
                 elif adr == 4:
-                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=4)
+                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=4 )
+                elif adr == 5:
+                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=5 )
+                elif adr == 6:
+                    self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=6 )
         else:
             pwm_value = 0  # Set PWM to 0 when control flag is False
             self.io_modbus.io_rpi.aciona_pwm( duty_cycle=pwm_value, saida=1)

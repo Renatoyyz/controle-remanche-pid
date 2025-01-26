@@ -1,9 +1,6 @@
 # i2c bus (0 -- original Pi, 1 -- Rev 2 Pi)
 I2CBUS = 1
 
-# LCD Address
-ADDRESS = 0x27
-
 import smbus
 from time import sleep
 
@@ -89,7 +86,10 @@ Rs = 0b00000001 # Register select bit
 class lcd:
    #initializes objects and lcd
     def __init__(self):
-        self.lcd_device = i2c_device(ADDRESS)
+        self.addresses = self.find_i2c_address()
+        if self.addresses == []:
+            raise Exception(f"LCD not found at address. Available addresses: {self.addresses}")
+        self.lcd_device = i2c_device(self.addresses[0])
 
         self.lcd_write(0x03)
         self.lcd_write(0x03)
@@ -101,6 +101,23 @@ class lcd:
         self.lcd_write(LCD_CLEARDISPLAY)
         self.lcd_write(LCD_ENTRYMODESET | LCD_ENTRYLEFT)
         sleep(0.2)
+
+    def find_i2c_address(self):
+        try:
+            output = subprocess.check_output(['i2cdetect', '-y', str(I2CBUS)])
+            output = output.decode('utf-8').split('\n')
+            addresses = []
+            for line in output:
+                if line.startswith(' '):
+                    continue
+                parts = line.split()
+                for part in parts[1:]:
+                    if part != '--':
+                        addresses.append(int(part, 16))
+            return addresses
+        except Exception as e:
+            print(f"Error finding I2C address: {e}")
+            return []
 
 
     # clocks EN to latch command
@@ -160,21 +177,49 @@ class lcd:
             for line in char:
                 self.lcd_write_char(line) 
 
+    # put string function with inverted background
+    def lcd_display_string_inverter(self, string, line=1, pos=0):
+        if line == 1:
+            pos_new = pos
+        elif line == 2:
+            pos_new = 0x40 + pos
+        elif line == 3:
+            pos_new = 0x14 + pos
+        elif line == 4:
+            pos_new = 0x54 + pos
+
+        self.lcd_write(0x80 + pos_new)
+
+        # Turn off backlight to simulate inverted background
+        self.backlight(0)
+        for char in string:
+            self.lcd_write(ord(char), Rs)
+        # Turn on backlight after writing the string
+        self.backlight(1)
+
         
 
 if __name__ == "__main__":
     import time
+    import subprocess
 
     lcdi2c = lcd()
 
     #Exibe informacoes iniciais
     lcdi2c.lcd_display_string("Renato Oliveira", 1,1)
-    lcdi2c.lcd_display_string("Katia Amor", 2,1)
+    # lcdi2c.lcd_display_string("Katia Amor", 2,1)
+    # Mostra uma string com fundo invertido
+    lcdi2c.lcd_display_string_inverter("Katia Amor", 2, 1)
     time.sleep(4)
 
     #Apaga o display
-    # lcdi2c.lcd_clear() 
-    while True:
-    #Mostra a data no display
-        lcdi2c.lcd_display_string("Data: %s" %time.strftime("%d/%m/%y"), 3,1)
-        lcdi2c.lcd_display_string("Hora: %s" %time.strftime("%H/%M/%S"), 4,1)
+    # lcdi2c.lcd_clear()
+    try:
+        while True:
+            #Mostra a data no display
+            lcdi2c.lcd_display_string("Data: %s" %time.strftime("%d/%m/%y"), 3,1)
+            lcdi2c.lcd_display_string("Hora: %s" %time.strftime("%H/%M/%S"), 4,1)
+            time.sleep(1) 
+    except KeyboardInterrupt:
+        lcdi2c.lcd_clear()
+        print("Fim do programa")
