@@ -11,20 +11,20 @@ class KY040:
 
         self.counter = 0
         self.test_counter = 0
-        self.sw_status = False
+        self.sw_status = 1
 
-        self.io.setup(self.clk_pin, self.io.IN, pull_up_down=self.io.PUD_UP)
-        self.io.setup(self.dt_pin, self.io.IN, pull_up_down=self.io.PUD_UP)
-        self.io.setup(self.sw_pin, self.io.IN, pull_up_down=self.io.PUD_UP)
+        self.io.io_rpi.GPIO.setup(self.clk_pin, self.io.io_rpi.GPIO.IN, pull_up_down=self.io.io_rpi.GPIO.PUD_UP)
+        self.io.io_rpi.GPIO.setup(self.dt_pin, self.io.io_rpi.GPIO.IN, pull_up_down=self.io.io_rpi.GPIO.PUD_UP)
+        self.io.io_rpi.GPIO.setup(self.sw_pin, self.io.io_rpi.GPIO.IN, pull_up_down=self.io.io_rpi.GPIO.PUD_UP)
 
-        self.last_clk_state = self.io.input(self.clk_pin)
+        self.last_clk_state = self.io.io_rpi.GPIO.input(self.clk_pin)
 
-        self.io.add_event_detect(self.clk_pin, edge=self.io.BOTH, callback=self._clk_callback, bouncetime=1)
-        self.io.add_event_detect(self.sw_pin, self.io.BOTH, callback=self._sw_callback, bouncetime=100)
+        self.io.io_rpi.GPIO.add_event_detect(self.clk_pin, edge=self.io.io_rpi.GPIO.BOTH, callback=self._clk_callback, bouncetime=1)
+        self.io.io_rpi.GPIO.add_event_detect(self.sw_pin, self.io.io_rpi.GPIO.BOTH, callback=self._sw_callback, bouncetime=100)
 
     def _clk_callback(self, channel):
-        clk_state = self.io.input(self.clk_pin)
-        dt_state = self.io.input(self.dt_pin)
+        clk_state = self.io.io_rpi.GPIO.input(self.clk_pin)
+        dt_state = self.io.io_rpi.GPIO.input(self.dt_pin)
         if clk_state != self.last_clk_state:
             if dt_state != clk_state:
                 self.test_counter += 1
@@ -43,29 +43,29 @@ class KY040:
             self.last_clk_state = clk_state
 
     def _sw_callback(self, channel):
-        self.sw_status = self.io.input(self.sw_pin)
+        self.sw_status = self.io.io_rpi.GPIO.input(self.sw_pin)
 
     def get_counter(self):
         return self.counter
-
+    @property
     def get_sw_status(self):
         return self.sw_status
 
     def cleanup(self):
-        self.io.remove_event_detect(self.clk_pin)
-        self.io.remove_event_detect(self.sw_pin)
-        self.io.cleanup()
+        self.io.io_rpi.GPIO.remove_event_detect(self.clk_pin)
+        self.io.io_rpi.GPIO.remove_event_detect(self.sw_pin)
+        self.io.io_rpi.cleanup()
+        print("Exiting...")
 
 # Exemplo de uso
 if __name__ == "__main__":
     from IOs import IO_MODBUS
     ios = IO_MODBUS()
-    ky040 = KY040(io=ios.io_rpi.GPIO)
+    ky040 = KY040(io=ios)
     try:
         while True:
             print("Counter: ", ky040.get_counter())
-            print("SW Status: ", ky040.get_sw_status())
+            print("SW Status: ", ky040.get_sw_status)
             time.sleep(0.1)
     except KeyboardInterrupt:
-        print("Exiting...")
         ky040.cleanup()

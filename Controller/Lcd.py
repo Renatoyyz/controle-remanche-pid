@@ -2,7 +2,8 @@
 I2CBUS = 1
 
 import smbus
-from time import sleep
+from time import sleep, strftime
+import subprocess
 
 class i2c_device:
    def __init__(self, addr, port=I2CBUS):
@@ -83,7 +84,7 @@ En = 0b00000100 # Enable bit
 Rw = 0b00000010 # Read/Write bit
 Rs = 0b00000001 # Register select bit
 
-class lcd:
+class Lcd:
    #initializes objects and lcd
     def __init__(self):
         self.addresses = self.find_i2c_address()
@@ -200,26 +201,23 @@ class lcd:
         
 
 if __name__ == "__main__":
-    import time
-    import subprocess
-
-    lcdi2c = lcd()
+    lcdi2c = Lcd()
 
     #Exibe informacoes iniciais
     lcdi2c.lcd_display_string("Renato Oliveira", 1,1)
     # lcdi2c.lcd_display_string("Katia Amor", 2,1)
     # Mostra uma string com fundo invertido
     lcdi2c.lcd_display_string_inverter("Katia Amor", 2, 1)
-    time.sleep(4)
+    sleep(4)
 
     #Apaga o display
     # lcdi2c.lcd_clear()
     try:
         while True:
             #Mostra a data no display
-            lcdi2c.lcd_display_string("Data: %s" %time.strftime("%d/%m/%y"), 3,1)
-            lcdi2c.lcd_display_string("Hora: %s" %time.strftime("%H/%M/%S"), 4,1)
-            time.sleep(1) 
+            lcdi2c.lcd_display_string("Data: %s" %strftime("%d/%m/%y"), 3,1)
+            lcdi2c.lcd_display_string("Hora: %s" %strftime("%H/%M/%S"), 4,1)
+            sleep(1) 
     except KeyboardInterrupt:
         lcdi2c.lcd_clear()
         print("Fim do programa")
