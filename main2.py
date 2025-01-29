@@ -41,6 +41,10 @@ if __name__ == "__main__":
     pid.start(interval=1)
     
 
+        # Adicione uma nova constante para a tela de configuração PID
+    TELA_CONFIGURACAO_PID = 3
+
+    # Modifique o loop principal para incluir a nova tela
     try:
         while True:
             if dado.telas == dado.TELA_INICIAL:
@@ -65,7 +69,6 @@ if __name__ == "__main__":
 
             elif dado.telas == dado.TELA_EXECUCAO:
                 lcd.lcd_display_string("Execucao", 1, 1)
-                # lcd.lcd_display_string("Pressione o botao", 2, 1)
                 lcd.lcd_display_string(f"1:{pid.value_temp[0]} 2:{pid.value_temp[1]}", 2, 1)
                 lcd.lcd_display_string(f"3:{pid.value_temp[2]} 4:{pid.value_temp[3]}", 3, 1)
                 lcd.lcd_display_string(f"5:{pid.value_temp[4]} 6:{pid.value_temp[5]}", 4, 1)
@@ -75,8 +78,9 @@ if __name__ == "__main__":
                     pid._control_flag = False
                     lcd.lcd_clear()
                     time.sleep(0.3)
+
             elif dado.telas == dado.TELA_CONFIGURACAO:
-                pot.val_max = 2 # Limita a quantidade de digitos para ajusta de setpoint
+                pot.val_max = 2  # Limita a quantidade de digitos para ajuste de setpoint
                 lcd.lcd_display_string("Ajuste setpoint", 1, 1)
                 lcd.lcd_display_string(f"Temp. {setpoint}C", 2, 1)
                 lcd.lcd_display_string("Sair: ", 3, 1)
@@ -108,11 +112,43 @@ if __name__ == "__main__":
                     lcd.lcd_display_string(" ", 2, 0)
                     lcd.lcd_display_string(">", 3, 0)
                     lcd.lcd_display_string(" ", 4, 0)
-                if pot.get_sw_status == 0 and pot.get_counter() == 2:
-                    pot.val_max = 2
-                    dado.set_telas(dado.TELA_INICIAL)
-                    lcd.lcd_clear()
-                    time.sleep(0.3)
+                    if pot.get_sw_status == 0 and pot.get_counter() == 2:
+                        dado.set_telas(TELA_CONFIGURACAO_PID)
+                        lcd.lcd_clear()
+                        time.sleep(0.3)
+
+            elif dado.telas == TELA_CONFIGURACAO_PID:
+                lcd.lcd_display_string("Ajuste PID", 1, 1)
+                lcd.lcd_display_string(f"Canal {pot.counter}", 2, 1)
+                lcd.lcd_display_string("Kp: {:.2f} Ki: {:.2f} Kd: {:.2f}".format(kp_list[pot.counter-1], ki_list[pot.counter-1], kd_list[pot.counter-1]), 3, 1)
+                lcd.lcd_display_string("Sair: ", 4, 1)
+
+                if pot.get_sw_status == 0:
+                    time.sleep(0.6)
+                    ajt = 1
+                    while ajt == 1:
+                        lcd.lcd_display_string("Ajuste Kp", 1, 1)
+                        lcd.lcd_display_string(f"Kp: {kp_list[pot.counter-1]:.2f}", 2, 1)
+                        kp_list[pot.counter-1] = pot.get_counter() / 100.0
+                        if pot.get_sw_status == 0:
+                            time.sleep(0.6)
+                            ajt = 2
+                            while ajt == 2:
+                                lcd.lcd_display_string("Ajuste Ki", 1, 1)
+                                lcd.lcd_display_string(f"Ki: {ki_list[pot.counter-1]:.2f}", 2, 1)
+                                ki_list[pot.counter-1] = pot.get_counter() / 100.0
+                                if pot.get_sw_status == 0:
+                                    time.sleep(0.6)
+                                    ajt = 3
+                                    while ajt == 3:
+                                        lcd.lcd_display_string("Ajuste Kd", 1, 1)
+                                        lcd.lcd_display_string(f"Kd: {kd_list[pot.counter-1]:.2f}", 2, 1)
+                                        kd_list[pot.counter-1] = pot.get_counter() / 100.0
+                                        if pot.get_sw_status == 0:
+                                            ajt = 0
+                                            dado.set_telas(dado.TELA_INICIAL)
+                                            lcd.lcd_clear()
+                                            time.sleep(0.3)
 
     except KeyboardInterrupt:
         lcd.lcd_clear()
