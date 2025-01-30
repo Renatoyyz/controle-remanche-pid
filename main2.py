@@ -94,6 +94,7 @@ if __name__ == "__main__":
     # Modifique o loop principal para incluir a nova tela
     try:
         while True:
+            pot.val_max = 2
             if dado.telas == dado.TELA_INICIAL:
                 lcd.lcd_display_string("*****Qualifix******", 1, 1)
                 lcd.lcd_display_string("Iniciar", 2, 1)
@@ -129,7 +130,7 @@ if __name__ == "__main__":
             elif dado.telas == dado.TELA_CONFIGURACAO:
                 pot.val_max = 3  # Limita a quantidade de digitos para ajuste de setpoint
                 lcd.lcd_display_string("Ajuste setpoint", 1, 1)
-                lcd.lcd_display_string(f"Temp. {setpoint}C", 2, 1)
+                lcd.lcd_display_string(f"Temp. {setpoint}C  ", 2, 1)
                 lcd.lcd_display_string("PID: ", 3, 1)
                 lcd.lcd_display_string("Sair: ", 4, 1)
                 if pot.get_counter() == 1:
@@ -143,7 +144,7 @@ if __name__ == "__main__":
                         pot.counter = setpoint
                         while ajt == 1:
                             setpoint = pot.get_counter()
-                            lcd.lcd_display_string(f"Temp. {setpoint}C", 2, 1)
+                            lcd.lcd_display_string(f"Temp. {setpoint}C  ", 2, 1)
                             if pot.get_sw_status == 0:
                                 pot.val_max = 2
                                 pot.counter = pot.val_min
@@ -152,7 +153,8 @@ if __name__ == "__main__":
 
                                 pid.setpoint_list = [setpoint, setpoint, setpoint, setpoint, setpoint, setpoint]
                                 ajt = 0
-                                dado.set_telas(dado.TELA_INICIAL)
+                                pot.val_max = 3
+                                dado.set_telas(dado.TELA_CONFIGURACAO)
                                 lcd.lcd_clear()
                                 time.sleep(0.3)
 
@@ -179,7 +181,7 @@ if __name__ == "__main__":
                 lcd.lcd_display_string("Ajuste PID", 1, 1)
                 lcd.lcd_display_string(f"Canal {canal}", 2, 1)
                 lcd.lcd_display_string("Kp: {:.2f} Ki: {:.2f} Kd: {:.2f}".format(kp_list[canal-1], ki_list[canal-1], kd_list[canal-1]), 3, 1)
-                lcd.lcd_display_string("Sair: ", 4, 1)
+                # lcd.lcd_display_string("Sair: ", 4, 1)
 
                 if pot.get_sw_status == 0:
                     time.sleep(0.6)
@@ -210,6 +212,9 @@ if __name__ == "__main__":
                                             ajt = 0
                                             pot.val_max = 3  # Limita a quantidade de digitos para ajuste de setpoint
                                             save_pid_values(kp_list, ki_list, kd_list)  # Salva os valores ajustados
+                                            pid.kp_list = kp_list
+                                            pid.ki_list = ki_list
+                                            pid.kd_list = kd_list
                                             dado.set_telas(dado.TELA_CONFIGURACAO)
                                             lcd.lcd_clear()
                                             time.sleep(0.3)
