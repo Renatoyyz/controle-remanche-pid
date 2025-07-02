@@ -3,11 +3,14 @@ import time
 from Controller.IOs import IO_MODBUS
 
 class PIDController:
-    def __init__(self, kp_list = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], ki_list = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5], kd_list = [0.05,0.05,0.05,0.05,0.05,0.05], setpoint_list = [180,180,180,180,180,180], io_modbus=None, adr=[1, 2, 3, 4, 5, 6]):
+    def __init__(self, kp_list=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0], ki_list=[0.5, 0.5, 0.5, 0.5, 0.5, 0.5], kd_list=[0.05, 0.05, 0.05, 0.05, 0.05, 0.05], setpoint_list=[180, 180, 180, 180, 180, 180], io_modbus=None, adr=[1, 2, 3, 4, 5, 6]):
         self.kp_list = kp_list
         self.ki_list = ki_list
         self.kd_list = kd_list
         self.setpoint_list = setpoint_list
+
+        # Divide cada setpoint em 4 patamares (25%, 50%, 75%, 100%)
+        self.setpoint_stages = [[sp * 0.25, sp * 0.50, sp * 0.75, sp] for sp in setpoint_list]
 
         self.value_temp = [0, 0, 0, 0, 0, 0]
 
@@ -18,9 +21,12 @@ class PIDController:
         self._running = False
         self._control_flag = False
         self._thread = None
+        self.current_stage = [0] * len(setpoint_list)  # Patamar atual para cada setpoint
+        self.stage_start_time = [None] * len(setpoint_list)  # Tempo de início do patamar para cada setpoint
 
     def compute(self, current_value, index):
-        error = self.setpoint_list[index] - current_value
+        # Controle baseado no patamar atual
+        error = self.setpoint_stages[index][self.current_stage[index]] - current_value
         self.integral[index] += error
         derivative = error - self.previous_error[index]
 
@@ -32,6 +38,17 @@ class PIDController:
     def control_pwm(self):
         if self._control_flag:
             for i, adr in enumerate(self.adr):
+                # Verifica se o tempo de controle do patamar atual foi atingido
+                if self.stage_start_time[i] is None:
+                    self.stage_start_time[i] = time.time()
+
+                elapsed_time = time.time() - self.stage_start_time[i]
+                if elapsed_time >= 60:  # 1 minuto por patamar
+                    self.current_stage[i] += 1
+                    if self.current_stage[i] >= len(self.setpoint_stages[i]):  # Se todos os patamares forem concluídos
+                        self.current_stage[i] = len(self.setpoint_stages[i]) - 1  # Fixa no último patamar
+                    self.stage_start_time[i] = time.time()  # Reinicia o tempo para o próximo patamar
+
                 self.value_temp[i] = self.io_modbus.get_temperature_channel(adr)
                 pid_output = self.compute(self.value_temp[i], i)
                 pwm_value = max(0, min(100, pid_output))  # Ensure PWM value is between 0 and 100
@@ -59,6 +76,19 @@ class PIDController:
 
     def set_control_flag(self, flag):
         self._control_flag = flag
+        if not flag:
+            # Resetar estados internos ao desativar o controle
+            self.integral = [0] * len(self.adr)
+            self.previous_error = [0] * len(self.adr)
+            self.stage_start_time = [None] * len(self.adr)  # Reinicia o tempo dos patamares
+            self.current_stage = [0] * len(self.adr)  # Reinicia os patamares
+        else:
+            # Ajustar patamar inicial ao retomar o controle
+            for i, temp in enumerate(self.value_temp):
+                for stage, setpoint in enumerate(self.setpoint_stages[i]):
+                    if temp >= setpoint:
+                        self.current_stage[i] = stage
+                        break
 
 # Example usage
 if __name__ == "__main__":
@@ -67,17 +97,21 @@ if __name__ == "__main__":
     kp_list = [1.0, 1.1, 1.2, 1.3, 1.4, 1.5]
     ki_list = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]
     kd_list = [0.05, 0.06, 0.07, 0.08, 0.09, 0.1]
-    setpoint_list = [50, 55, 60, 65, 70, 75]
+    setpoint_list = [180, 180, 180, 180, 180, 180]
 
     pid_controller = PIDController(kp_list=kp_list, ki_list=ki_list, kd_list=kd_list, setpoint_list=setpoint_list, io_modbus=io_modbus, adr=[1, 2, 3, 4, 5, 6])
 
     # Start control loop in a separate thread
     pid_controller.start(interval=1)
 
-    # Set control flag to True to start controlling
+    # Activate control
     pid_controller.set_control_flag(True)
 
-    # Run for 10 seconds then stop
-    time.sleep(10)
+    # Run for the duration of the control process
+    time.sleep(300)  # Example: wait for 5 minutes
+
+    # Deactivate control
     pid_controller.set_control_flag(False)
+
+    # Stop the control loop
     pid_controller.stop()

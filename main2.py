@@ -108,7 +108,7 @@ if __name__ == "__main__":
                     lcd.lcd_display_string(" ", 2, 0)
                 if pot.get_sw_status == 0 and pot.counter == 1:
                     dado.set_telas(dado.TELA_EXECUCAO)
-                    pid._control_flag = True
+                    pid.set_control_flag(True)
                     lcd.lcd_clear()
                     time.sleep(0.3)
                 elif pot.get_sw_status == 0 and pot.counter == 2:
@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
                 if pot.get_sw_status == 0:
                     dado.set_telas(dado.TELA_INICIAL)
-                    pid._control_flag = False
+                    pid.set_control_flag(False)
                     lcd.lcd_clear()
                     time.sleep(0.3)
 
@@ -142,7 +142,7 @@ if __name__ == "__main__":
                     if pot.get_sw_status == 0 and pot.get_counter() == 1:
                         time.sleep(0.6)
                         ajt = 1
-                        pot.val_max = 200
+                        pot.val_max = 300
                         pot.counter = setpoint
                         while ajt == 1:
                             setpoint = pot.get_counter()
@@ -185,7 +185,8 @@ if __name__ == "__main__":
                 canal = pot.get_counter()
                 lcd.lcd_display_string("Ajuste PID", 1, 1)
                 lcd.lcd_display_string(f"Canal {canal}", 2, 1)
-                lcd.lcd_display_string("Kp: {:.2f} Ki: {:.2f} Kd: {:.2f}".format(kp_list[canal-1], ki_list[canal-1], kd_list[canal-1]), 3, 1)
+                lcd.lcd_display_string("Kp: {:.2f} Ki: {:.2f}".format(kp_list[canal-1], ki_list[canal-1]), 3, 1)
+                lcd.lcd_display_string("Kd: {:.2f}".format(kd_list[canal-1]), 4, 1)
                 # lcd.lcd_display_string("Sair: ", 4, 1)
 
                 if pot.get_sw_status == 0:
@@ -232,7 +233,7 @@ if __name__ == "__main__":
         lcd.lcd_clear()
         pot.cleanup()
         io.io_rpi.cleanup()
-        pid._control_flag = False
+        pid.set_control_flag(False)
         pid.stop()
         print("Saindo do programa")
         exit()

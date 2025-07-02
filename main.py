@@ -87,7 +87,7 @@ if __name__ == "__main__":
                     if pot.get_sw_status == 0:
                         time.sleep(0.6)
                         ajt = 1
-                        pot.val_max = 200
+                        pot.val_max = 300
                         pot.counter = setpoint
                         while ajt == 1:
                             setpoint = pot.get_counter()
