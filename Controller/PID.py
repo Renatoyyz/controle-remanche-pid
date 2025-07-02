@@ -38,18 +38,20 @@ class PIDController:
     def control_pwm(self):
         if self._control_flag:
             for i, adr in enumerate(self.adr):
-                # Verifica se o tempo de controle do patamar atual foi atingido
-                if self.stage_start_time[i] is None:
-                    self.stage_start_time[i] = time.time()
-
-                elapsed_time = time.time() - self.stage_start_time[i]
-                if elapsed_time >= 60:  # 1 minuto por patamar
-                    self.current_stage[i] += 1
-                    if self.current_stage[i] >= len(self.setpoint_stages[i]):  # Se todos os patamares forem concluídos
-                        self.current_stage[i] = len(self.setpoint_stages[i]) - 1  # Fixa no último patamar
-                    self.stage_start_time[i] = time.time()  # Reinicia o tempo para o próximo patamar
-
                 self.value_temp[i] = self.io_modbus.get_temperature_channel(adr)
+                
+                # Verifica se a temperatura atingiu o patamar atual
+                if abs(self.value_temp[i] - self.setpoint_stages[i][self.current_stage[i]]) <= 5:  # Tolerância de 5°C
+                    if self.stage_start_time[i] is None:
+                        self.stage_start_time[i] = time.time()
+
+                    elapsed_time = time.time() - self.stage_start_time[i]
+                    if elapsed_time >= 60:  # 1 minuto por patamar
+                        self.current_stage[i] += 1
+                        if self.current_stage[i] >= len(self.setpoint_stages[i]):  # Se todos os patamares forem concluídos
+                            self.current_stage[i] = len(self.setpoint_stages[i]) - 1  # Fixa no último patamar
+                        self.stage_start_time[i] = None  # Reinicia o tempo para o próximo patamar
+
                 pid_output = self.compute(self.value_temp[i], i)
                 pwm_value = max(0, min(100, pid_output))  # Ensure PWM value is between 0 and 100
                 self.io_modbus.io_rpi.aciona_pwm(duty_cycle=pwm_value, saida=adr)
