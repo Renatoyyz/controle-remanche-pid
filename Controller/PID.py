@@ -78,6 +78,11 @@ class PIDController:
 
     def set_control_flag(self, flag):
         self._control_flag = flag
+
+        # Atualiza as temperaturas atuais antes de verificar o flag
+        for i, adr in enumerate(self.adr):
+            self.value_temp[i] = self.io_modbus.get_temperature_channel(adr)
+
         if not flag:
             # Resetar estados internos ao desativar o controle
             self.integral = [0] * len(self.adr)
@@ -87,10 +92,14 @@ class PIDController:
         else:
             # Ajustar patamar inicial ao retomar o controle
             for i, temp in enumerate(self.value_temp):
+                # Identificar o patamar mais próximo da temperatura atual
                 for stage, setpoint in enumerate(self.setpoint_stages[i]):
-                    if temp >= setpoint:
-                        self.current_stage[i] = stage
+                    if temp < setpoint:  # Encontra o primeiro patamar acima da temperatura atual
+                        self.current_stage[i] = max(0, stage - 1)  # Ajusta para o patamar anterior ou mantém o atual
                         break
+                else:
+                    # Se a temperatura estiver acima de todos os patamares, fixa no último patamar
+                    self.current_stage[i] = len(self.setpoint_stages[i]) - 1
 
 # Example usage
 if __name__ == "__main__":
