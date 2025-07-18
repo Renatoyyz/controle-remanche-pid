@@ -46,6 +46,9 @@ class InOut:
         self.SAIDA_PWM_4 = 19
         self.SAIDA_PWM_5 = 5
         self.SAIDA_PWM_6 = 6
+        self.SAIDA_MAQUINA_PRONTA = 13
+
+        self.ENTRADA_ACIONA_MAQUINA = 12
         self.pwm_thread_running = True
 
         try:
@@ -65,6 +68,11 @@ class InOut:
         self.GPIO.setup(self.SAIDA_PWM_5,  self.GPIO.OUT)
         self.GPIO.setup(self.SAIDA_PWM_6,  self.GPIO.OUT)
 
+        self.GPIO.setup(self.SAIDA_MAQUINA_PRONTA, self.GPIO.OUT)
+        self.GPIO.output(self.SAIDA_MAQUINA_PRONTA, self.GPIO.HIGH)  # Inicializa como desligado
+
+        self.GPIO.setup(self.ENTRADA_ACIONA_MAQUINA, self.GPIO.IN, pull_up_down=self.GPIO.PUD_UP)
+
         self.pwm_period = 1.0  # Default period in seconds
         self.pwm_duty_cycles = {
             self.SAIDA_PWM_1: 0,
@@ -81,6 +89,13 @@ class InOut:
             thread.daemon = True
             thread.start()
             self.pwm_threads[pin] = thread
+
+    @property
+    def get_aciona_maquina(self):
+        if self.GPIO.input(self.ENTRADA_ACIONA_MAQUINA) == self.GPIO.LOW:
+            return True
+        else:
+            return False
 
     def _pwm_control(self, pin):
         while self.pwm_thread_running:
@@ -121,10 +136,15 @@ class InOut:
             thread.join()
         self.GPIO.cleanup()
 
+    def aciona_maquina_pronta(self, status):
+        if status:
+            self.GPIO.output(self.SAIDA_MAQUINA_PRONTA, self.GPIO.LOW)
+        else:
+            self.GPIO.output(self.SAIDA_MAQUINA_PRONTA, self.GPIO.HIGH)
+
 class IO_MODBUS:
     def __init__(self, dado=None):
         self.dado = dado
-
         self.fake_modbus = True
         try:
             self.ser = serial.Serial(

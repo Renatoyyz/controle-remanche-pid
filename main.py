@@ -1,6 +1,6 @@
 import time
 from Controller.PID import PIDController
-from Controller.IOs import IO_MODBUS
+from Controller.IOs import IO_MODBUS, InOut
 from Controller.Dados import Dado
 from Controller.Lcd import Lcd
 from Controller.KY040 import KY040
@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 elif pot.counter == 2:
                     lcd.lcd_display_string(">", 3, 0)
                     lcd.lcd_display_string(" ", 2, 0)
-                if pot.get_sw_status == 0 and pot.counter == 1:
+                if pot.get_sw_status == 0 and (pot.counter == 1 or io.io_rpi.get_aciona_maquina == 0 ):
                     dado.set_telas(dado.TELA_EXECUCAO)
                     pid.set_control_flag(True)
                     lcd.lcd_clear()
@@ -134,7 +134,8 @@ if __name__ == "__main__":
                 lcd.lcd_display_string(f"2:{pid.value_temp[1]} 5:{pid.value_temp[4]}", 3, 1)
                 lcd.lcd_display_string(f"3:{pid.value_temp[2]} 6:{pid.value_temp[5]}", 4, 1)
 
-                if pot.get_sw_status == 0:
+                if pot.get_sw_status == 0 or io.io_rpi.get_aciona_maquina == 0:
+                    io.io_rpi.aciona_maquina_pronta(False) # Desliga a saida que habilita a prensa
                     dado.set_telas(dado.TELA_INICIAL)
                     pid.set_control_flag(False)
                     lcd.lcd_clear()
