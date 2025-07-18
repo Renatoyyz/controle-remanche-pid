@@ -59,15 +59,15 @@ class PIDController:
                 # Verifica se todos os canais atingiram o último patamar dentro da faixa permitida
                 all_channels_ready = True
                 for j, setpoint_stage in enumerate(self.setpoint_stages):
-                    if not (setpoint_stage[-1] * 0.92 <= self.value_temp[j] <= setpoint_stage[-1] * 1.08):  # Faixa de 95% a 105% do setpoint final
+                    if not (setpoint_stage[-1] * 0.92 <= self.value_temp[j] <= setpoint_stage[-1] * 1.08):  # Faixa de 92% a 108% do setpoint final
                         all_channels_ready = False
                         break
 
                 # Aciona a saída de máquina pronta se todos os canais estiverem prontos
                 if all_channels_ready:
-                    self.io_modbus.io_rpi.aciona_maquina_pronta(True)
-                else:
                     self.io_modbus.io_rpi.aciona_maquina_pronta(False)
+                else:
+                    self.io_modbus.io_rpi.aciona_maquina_pronta(True)
         else:
             pwm_value = 0  # Set PWM to 0 when control flag is False
             for adr in self.adr:
