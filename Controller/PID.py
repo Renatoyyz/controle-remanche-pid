@@ -25,13 +25,35 @@ class PIDController:
         self.current_stage = [0] * len(setpoint_list)  # Patamar atual para cada setpoint
         self.stage_start_time = [None] * len(setpoint_list)  # Tempo de início do patamar para cada setpoint
 
+    # def compute(self, current_value, index):
+    #     # Controle baseado no patamar atual
+    #     error = self.setpoint_stages[index][self.current_stage[index]] - current_value
+    #     self.integral[index] += error
+    #     derivative = error - self.previous_error[index]
+
+    #     output = self.kp_list[index] * error + self.ki_list[index] * self.integral[index] + self.kd_list[index] * derivative
+    #     self.previous_error[index] = error
+
+    #     return output
+
     def compute(self, current_value, index):
-        # Controle baseado no patamar atual
         error = self.setpoint_stages[index][self.current_stage[index]] - current_value
-        self.integral[index] += error
+
+        # Zera a integral se o erro for muito pequeno (ex: menor que 0.5)
+        if abs(error) < 0.5:
+            self.integral[index] = 0
+        else:
+            self.integral[index] += error
+            # Limita a integral para evitar windup
+            self.integral[index] = max(-100, min(100, self.integral[index]))
+
         derivative = error - self.previous_error[index]
 
-        output = self.kp_list[index] * error + self.ki_list[index] * self.integral[index] + self.kd_list[index] * derivative
+        output = (
+            self.kp_list[index] * error +
+            self.ki_list[index] * self.integral[index] +
+            self.kd_list[index] * derivative
+        )
         self.previous_error[index] = error
 
         return output
