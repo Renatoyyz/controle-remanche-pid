@@ -11,6 +11,7 @@ class PIDController:
 
         # Divide cada setpoint em 4 patamares (25%, 50%, 75%, 100%)
         self.setpoint_stages = [[sp * 0.25, sp * 0.50, sp * 0.75, sp] for sp in setpoint_list]
+        # self.setpoint_stages = [[sp , sp , sp , sp] for sp in setpoint_list]
 
         self.value_temp = [0, 0, 0, 0, 0, 0]
 
@@ -103,16 +104,13 @@ class PIDController:
             self.stage_start_time = [None] * len(self.adr)  # Reinicia o tempo dos patamares
             self.current_stage = [0] * len(self.adr)  # Reinicia os patamares
         else:
-            # Ajustar patamar inicial ao retomar o controle
             for i, temp in enumerate(self.value_temp):
-                # Identificar o patamar mais próximo da temperatura atual
+                # Procura o maior patamar cujo setpoint seja menor ou igual à temperatura atual
+                stage_found = 0
                 for stage, setpoint in enumerate(self.setpoint_stages[i]):
-                    if temp < setpoint:  # Encontra o primeiro patamar acima da temperatura atual
-                        self.current_stage[i] = max(0, stage - 1)  # Ajusta para o patamar anterior ou mantém o atual
-                        break
-                else:
-                    # Se a temperatura estiver acima de todos os patamares, fixa no último patamar
-                    self.current_stage[i] = len(self.setpoint_stages[i]) - 1
+                    if temp >= setpoint:
+                        stage_found = stage
+                self.current_stage[i] = stage_found
 
 # Example usage
 if __name__ == "__main__":

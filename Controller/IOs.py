@@ -93,9 +93,9 @@ class InOut:
     @property
     def get_aciona_maquina(self):
         if self.GPIO.input(self.ENTRADA_ACIONA_MAQUINA) == self.GPIO.LOW:
-            return True
+            return 1
         else:
-            return False
+            return 0
 
     def _pwm_control(self, pin):
         while self.pwm_thread_running:

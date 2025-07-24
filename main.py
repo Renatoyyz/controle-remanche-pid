@@ -117,7 +117,7 @@ if __name__ == "__main__":
                 elif pot.counter == 2:
                     lcd.lcd_display_string(">", 3, 0)
                     lcd.lcd_display_string(" ", 2, 0)
-                if pot.get_sw_status == 0 and (pot.counter == 1 or io.io_rpi.get_aciona_maquina == 0 ):
+                if pot.get_sw_status == 0 and (pot.counter == 1 or io.io_rpi.get_aciona_maquina == 1 ):
                     dado.set_telas(dado.TELA_EXECUCAO)
                     pid.set_control_flag(True)
                     lcd.lcd_clear()
@@ -134,7 +134,7 @@ if __name__ == "__main__":
                 lcd.lcd_display_string(f"2:{pid.value_temp[1]} 5:{pid.value_temp[4]}", 3, 1)
                 lcd.lcd_display_string(f"3:{pid.value_temp[2]} 6:{pid.value_temp[5]}", 4, 1)
 
-                if pot.get_sw_status == 0 or io.io_rpi.get_aciona_maquina == 0:
+                if pot.get_sw_status == 0 or io.io_rpi.get_aciona_maquina == 1:
                     io.io_rpi.aciona_maquina_pronta(False) # Desliga a saida que habilita a prensa
                     dado.set_telas(dado.TELA_INICIAL)
                     pid.set_control_flag(False)
@@ -207,32 +207,32 @@ if __name__ == "__main__":
 
                 if pot.get_sw_status == 0:
                     time.sleep(0.6)
-                    pot.val_max = 300  # Limita o ajuste de PID
+                    pot.val_max = 400  # Limita o ajuste de PID
                     ajt = 1
                     lcd.lcd_clear()
-                    pot.counter = kp_list[canal-1] * 100
+                    pot.counter = int(kp_list[canal-1] * 10)  # Escala para trabalhar com 0.1
                     while ajt == 1:
                         lcd.lcd_display_string("Ajuste Kp", 1, 1)
                         lcd.lcd_display_string(f"Kp: {kp_list[canal-1]:.2f}", 2, 1)
-                        kp_list[canal-1] = pot.get_counter() / 100.0
+                        kp_list[canal-1] = pot.get_counter() / 10.0
                         if pot.get_sw_status == 0:
                             time.sleep(0.6)
                             ajt = 2
                             lcd.lcd_clear()
-                            pot.counter = ki_list[canal-1] * 100
+                            pot.counter = int(ki_list[canal-1] * 10)  # Escala para trabalhar com 0.1
                             while ajt == 2:
                                 lcd.lcd_display_string("Ajuste Ki", 1, 1)
                                 lcd.lcd_display_string(f"Ki: {ki_list[canal-1]:.2f}", 2, 1)
-                                ki_list[canal-1] = pot.get_counter() / 100.0
+                                ki_list[canal-1] = pot.get_counter() / 10.0
                                 if pot.get_sw_status == 0:
                                     time.sleep(0.6)
                                     ajt = 3
                                     lcd.lcd_clear()
-                                    pot.counter = kd_list[canal-1] * 100
+                                    pot.counter = int(kd_list[canal-1] * 10)  # Escala para trabalhar com 0.1
                                     while ajt == 3:
                                         lcd.lcd_display_string("Ajuste Kd", 1, 1)
                                         lcd.lcd_display_string(f"Kd: {kd_list[canal-1]:.2f}", 2, 1)
-                                        kd_list[canal-1] = pot.get_counter() / 100.0
+                                        kd_list[canal-1] = pot.get_counter() / 10.0
                                         if pot.get_sw_status == 0:
                                             ajt = 0
                                             pot.val_max = 6  # Limita a quantidade de canais para ajuste de PID
