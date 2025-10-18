@@ -117,7 +117,9 @@ if __name__ == "__main__":
                 elif pot.counter == 2:
                     lcd.lcd_display_string(">", 3, 0)
                     lcd.lcd_display_string(" ", 2, 0)
-                if pot.get_sw_status == 0 and (pot.counter == 1 or io.io_rpi.get_aciona_maquina == 0 ):
+                if (pot.get_sw_status == 0 and (pot.counter == 1 )) or (pot.counter == 1 and io.io_rpi.get_aciona_maquina == 1):
+                    lcd.lcd_clear()
+                    lcd.lcd_display_string("**** AGUARDE ****  ", 1, 1)
                     dado.set_telas(dado.TELA_EXECUCAO)
                     pid.set_control_flag(True)
                     lcd.lcd_clear()
@@ -129,16 +131,19 @@ if __name__ == "__main__":
                     time.sleep(0.3)
 
             elif dado.telas == dado.TELA_EXECUCAO:
-                lcd.lcd_display_string("Execucao", 1, 1)
+                lcd.lcd_display_string("Execucao          ", 1, 1)
                 lcd.lcd_display_string(f"1:{pid.value_temp[0]} 4:{pid.value_temp[3]}", 2, 1)
                 lcd.lcd_display_string(f"2:{pid.value_temp[1]} 5:{pid.value_temp[4]}", 3, 1)
                 lcd.lcd_display_string(f"3:{pid.value_temp[2]} 6:{pid.value_temp[5]}", 4, 1)
 
-                if pot.get_sw_status == 0 or io.io_rpi.get_aciona_maquina == 0:
+                if pot.get_sw_status == 0 or io.io_rpi.get_aciona_maquina == 1:
+                    lcd.lcd_clear()
+                    lcd.lcd_display_string("**** AGUARDE ****  ", 1, 1)
                     io.io_rpi.aciona_maquina_pronta(False) # Desliga a saida que habilita a prensa
                     dado.set_telas(dado.TELA_INICIAL)
                     pid.set_control_flag(False)
                     lcd.lcd_clear()
+                    pot.counter = 1
                     time.sleep(0.3)
 
             elif dado.telas == dado.TELA_CONFIGURACAO:
@@ -170,6 +175,7 @@ if __name__ == "__main__":
                     if pot.get_sw_status == 0:
                         dado.set_telas(dado.TELA_INICIAL)
                         lcd.lcd_clear()
+                        pot.counter = 1
                         time.sleep(0.3)
 
             elif dado.telas == TELA_CONFIGURACAO_TEMP:
@@ -207,7 +213,7 @@ if __name__ == "__main__":
 
                 if pot.get_sw_status == 0:
                     time.sleep(0.6)
-                    pot.val_max = 300  # Limita o ajuste de PID
+                    pot.val_max = 4000  # Limita o ajuste de PID
                     ajt = 1
                     lcd.lcd_clear()
                     pot.counter = kp_list[canal-1] * 100

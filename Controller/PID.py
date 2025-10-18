@@ -10,7 +10,8 @@ class PIDController:
         self.setpoint_list = setpoint_list
 
         # Divide cada setpoint em 4 patamares (25%, 50%, 75%, 100%)
-        self.setpoint_stages = [[sp * 0.25, sp * 0.50, sp * 0.75, sp] for sp in setpoint_list]
+        # self.setpoint_stages = [[sp * 0.25, sp * 0.50, sp * 0.75, sp] for sp in setpoint_list]
+        self.setpoint_stages = [[sp, sp, sp, sp] for sp in setpoint_list]
 
         self.value_temp = [0, 0, 0, 0, 0, 0]
 
