@@ -8,59 +8,79 @@ class PIDController:
         self.ki_list = ki_list
         self.kd_list = kd_list
         self.setpoint_list = setpoint_list
-
-        # Divide cada setpoint em 4 patamares (25%, 50%, 75%, 100%)
-        # self.setpoint_stages = [[sp * 0.25, sp * 0.50, sp * 0.75, sp] for sp in setpoint_list]
-        self.setpoint_stages = [[sp, sp, sp, sp] for sp in setpoint_list]
-
         self.value_temp = [0, 0, 0, 0, 0, 0]
 
         self.io_modbus = io_modbus
         self.adr = adr
         self.integral = [0] * len(adr)
         self.previous_error = [0] * len(adr)
+        self.previous_time = [time.time()] * len(adr)
         self._running = False
         self._control_flag = False
         self._thread = None
-        self.current_stage = [0] * len(setpoint_list)  # Patamar atual para cada setpoint
-        self.stage_start_time = [None] * len(setpoint_list)  # Tempo de início do patamar para cada setpoint
+        
+        # Limites para anti-windup
+        self.output_min = 0
+        self.output_max = 100
+        self.integral_min = [-50] * len(adr)  # Limites do termo integral
+        self.integral_max = [50] * len(adr)
 
     def compute(self, current_value, index):
-        # Controle baseado no patamar atual
-        error = self.setpoint_stages[index][self.current_stage[index]] - current_value
-        self.integral[index] += error
-        derivative = error - self.previous_error[index]
-
-        output = self.kp_list[index] * error + self.ki_list[index] * self.integral[index] + self.kd_list[index] * derivative
+        current_time = time.time()
+        dt = current_time - self.previous_time[index]
+        
+        if dt <= 0:
+            dt = 0.001  # Evita divisão por zero
+        
+        # Controle PID direto com o setpoint final
+        error = self.setpoint_list[index] - current_value
+        
+        # Termo Proporcional
+        proportional = self.kp_list[index] * error
+        
+        # Termo Integral com anti-windup
+        self.integral[index] += error * dt
+        # Limita o termo integral para evitar windup
+        self.integral[index] = max(self.integral_min[index], min(self.integral_max[index], self.integral[index]))
+        integral_term = self.ki_list[index] * self.integral[index]
+        
+        # Termo Derivativo
+        derivative = (error - self.previous_error[index]) / dt
+        derivative_term = self.kd_list[index] * derivative
+        
+        # Saída PID
+        output = proportional + integral_term + derivative_term
+        
+        # Limita a saída e implementa anti-windup
+        output_limited = max(self.output_min, min(self.output_max, output))
+        
+        # Anti-windup: se a saída está saturada, não acumula mais no integral
+        if output != output_limited:
+            # Remove o excesso do integral
+            if output > output_limited and error > 0:
+                self.integral[index] -= error * dt
+            elif output < output_limited and error < 0:
+                self.integral[index] -= error * dt
+        
+        # Atualiza valores anteriores
         self.previous_error[index] = error
+        self.previous_time[index] = current_time
 
-        return output
+        return output_limited
 
     def control_pwm(self):
         if self._control_flag:
             for i, adr in enumerate(self.adr):
                 self.value_temp[i] = self.io_modbus.get_temperature_channel(adr)
                 
-                # Verifica se a temperatura atingiu o patamar atual
-                if abs(self.value_temp[i] - self.setpoint_stages[i][self.current_stage[i]]) <= 5:  # Tolerância de 5°C
-                    if self.stage_start_time[i] is None:
-                        self.stage_start_time[i] = time.time()
-
-                    elapsed_time = time.time() - self.stage_start_time[i]
-                    if elapsed_time >= 60:  # 1 minuto por patamar
-                        self.current_stage[i] += 1
-                        if self.current_stage[i] >= len(self.setpoint_stages[i]):  # Se todos os patamares forem concluídos
-                            self.current_stage[i] = len(self.setpoint_stages[i]) - 1  # Fixa no último patamar
-                        self.stage_start_time[i] = None  # Reinicia o tempo para o próximo patamar
-
                 pid_output = self.compute(self.value_temp[i], i)
-                pwm_value = max(0, min(100, pid_output))  # Ensure PWM value is between 0 and 100
+                pwm_value = pid_output  # A saída já está limitada na função compute
                 self.io_modbus.io_rpi.aciona_pwm(duty_cycle=pwm_value, saida=adr)
 
-                # Verifica se todos os canais atingiram o último patamar dentro da faixa permitida
+                # Verifica se todos os canais atingiram o setpoint dentro da faixa permitida
                 all_channels_ready = True
-                for j, setpoint_stage in enumerate(self.setpoint_stages):
-                    if not (setpoint_stage[-1] * 0.92 <= self.value_temp[j] <= setpoint_stage[-1] * 1.08):  # Faixa de 92% a 108% do setpoint final
+                for j, setpoint in enumerate(self.setpoint_list):
+                    if not (setpoint * 0.92 <= self.value_temp[j] <= setpoint * 1.08):  # Faixa de 92% a 108% do setpoint
                         all_channels_ready = False
                         break
 
@@ -101,19 +121,7 @@ class PIDController:
             # Resetar estados internos ao desativar o controle
             self.integral = [0] * len(self.adr)
             self.previous_error = [0] * len(self.adr)
-            self.stage_start_time = [None] * len(self.adr)  # Reinicia o tempo dos patamares
-            self.current_stage = [0] * len(self.adr)  # Reinicia os patamares
-        else:
-            # Ajustar patamar inicial ao retomar o controle
-            for i, temp in enumerate(self.value_temp):
-                # Identificar o patamar mais próximo da temperatura atual
-                for stage, setpoint in enumerate(self.setpoint_stages[i]):
-                    if temp < setpoint:  # Encontra o primeiro patamar acima da temperatura atual
-                        self.current_stage[i] = max(0, stage - 1)  # Ajusta para o patamar anterior ou mantém o atual
-                        break
-                else:
-                    # Se a temperatura estiver acima de todos os patamares, fixa no último patamar
-                    self.current_stage[i] = len(self.setpoint_stages[i]) - 1
+            self.previous_time = [time.time()] * len(self.adr)
 
 # Example usage
 if __name__ == "__main__":
