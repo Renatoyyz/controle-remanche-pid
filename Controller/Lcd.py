@@ -4,38 +4,68 @@ I2CBUS = 1
 import smbus
 from time import sleep, strftime
 import subprocess
+import threading
 
 class i2c_device:
-   def __init__(self, addr, port=I2CBUS):
+   def __init__(self, addr, port=I2CBUS, timeout=1):
       self.addr = addr
       self.bus = smbus.SMBus(port)
+      self.timeout = timeout
+      self.lock = threading.Lock()  # Lock para evitar race conditions
 
 # Write a single command
    def write_cmd(self, cmd):
-      self.bus.write_byte(self.addr, cmd)
-      sleep(0.0001)
+      with self.lock:
+         try:
+            self.bus.write_byte(self.addr, cmd)
+            sleep(0.0001)
+         except Exception as e:
+            print(f"Erro ao escrever comando I2C: {e}")
 
 # Write a command and argument
    def write_cmd_arg(self, cmd, data):
-      self.bus.write_byte_data(self.addr, cmd, data)
-      sleep(0.0001)
+      with self.lock:
+         try:
+            self.bus.write_byte_data(self.addr, cmd, data)
+            sleep(0.0001)
+         except Exception as e:
+            print(f"Erro ao escrever comando com argumento I2C: {e}")
 
 # Write a block of data
    def write_block_data(self, cmd, data):
-      self.bus.write_block_data(self.addr, cmd, data)
-      sleep(0.0001)
+      with self.lock:
+         try:
+            self.bus.write_block_data(self.addr, cmd, data)
+            sleep(0.0001)
+         except Exception as e:
+            print(f"Erro ao escrever bloco de dados I2C: {e}")
 
 # Read a single byte
    def read(self):
-      return self.bus.read_byte(self.addr)
+      with self.lock:
+         try:
+            return self.bus.read_byte(self.addr)
+         except Exception as e:
+            print(f"Erro ao ler byte I2C: {e}")
+            return None
 
 # Read
    def read_data(self, cmd):
-      return self.bus.read_byte_data(self.addr, cmd)
+      with self.lock:
+         try:
+            return self.bus.read_byte_data(self.addr, cmd)
+         except Exception as e:
+            print(f"Erro ao ler dado I2C: {e}")
+            return None
 
 # Read a block of data
    def read_block_data(self, cmd):
-      return self.bus.read_block_data(self.addr, cmd)
+      with self.lock:
+         try:
+            return self.bus.read_block_data(self.addr, cmd)
+         except Exception as e:
+            print(f"Erro ao ler bloco de dados I2C: {e}")
+            return None
 
 
 # commands
@@ -104,8 +134,13 @@ class Lcd:
         sleep(0.2)
 
     def find_i2c_address(self):
+        """Encontra endereço I2C com timeout"""
         try:
-            output = subprocess.check_output(['i2cdetect', '-y', str(I2CBUS)])
+            # Adiciona timeout ao subprocess
+            output = subprocess.check_output(
+                ['i2cdetect', '-y', str(I2CBUS)],
+                timeout=5  # ✅ IMPORTANTE: Timeout de 5 segundos
+            )
             output = output.decode('utf-8').split('\n')
             addresses = []
             for line in output:
@@ -114,89 +149,122 @@ class Lcd:
                 parts = line.split()
                 for part in parts[1:]:
                     if part != '--':
-                        addresses.append(int(part, 16))
+                        try:
+                            addresses.append(int(part, 16))
+                        except ValueError:
+                            continue
             return addresses
+        except subprocess.TimeoutExpired:
+            print("Timeout ao detectar endereço I2C. Usando fallback.")
+            return [0x27]  # Endereço padrão comum para LCD I2C
         except Exception as e:
-            print(f"Error finding I2C address: {e}")
-            return []
+            print(f"Erro ao encontrar endereço I2C: {e}")
+            return [0x27]  # Fallback
 
 
     # clocks EN to latch command
     def lcd_strobe(self, data):
-        self.lcd_device.write_cmd(data | En | LCD_BACKLIGHT)
-        sleep(.0005)
-        self.lcd_device.write_cmd(((data & ~En) | LCD_BACKLIGHT))
-        sleep(.0001)
+        try:
+            self.lcd_device.write_cmd(data | En | LCD_BACKLIGHT)
+            sleep(.0005)
+            self.lcd_device.write_cmd(((data & ~En) | LCD_BACKLIGHT))
+            sleep(.0001)
+        except Exception as e:
+            print(f"Erro ao fazer strobe: {e}")
 
     def lcd_write_four_bits(self, data):
-        self.lcd_device.write_cmd(data | LCD_BACKLIGHT)
-        self.lcd_strobe(data)
+        try:
+            self.lcd_device.write_cmd(data | LCD_BACKLIGHT)
+            self.lcd_strobe(data)
+        except Exception as e:
+            print(f"Erro ao escrever 4 bits: {e}")
 
     # write a command to lcd
     def lcd_write(self, cmd, mode=0):
-        self.lcd_write_four_bits(mode | (cmd & 0xF0))
-        self.lcd_write_four_bits(mode | ((cmd << 4) & 0xF0))
+        try:
+            self.lcd_write_four_bits(mode | (cmd & 0xF0))
+            self.lcd_write_four_bits(mode | ((cmd << 4) & 0xF0))
+        except Exception as e:
+            print(f"Erro ao escrever comando: {e}")
 
     # write a character to lcd (or character rom) 0x09: backlight | RS=DR<
     # works!
     def lcd_write_char(self, charvalue, mode=1):
-        self.lcd_write_four_bits(mode | (charvalue & 0xF0))
-        self.lcd_write_four_bits(mode | ((charvalue << 4) & 0xF0))
+        try:
+            self.lcd_write_four_bits(mode | (charvalue & 0xF0))
+            self.lcd_write_four_bits(mode | ((charvalue << 4) & 0xF0))
+        except Exception as e:
+            print(f"Erro ao escrever caractere: {e}")
   
     # put string function with optional char positioning
     def lcd_display_string(self, string, line=1, pos=0):
-        if line == 1:
-            pos_new = pos
-        elif line == 2:
-            pos_new = 0x40 + pos
-        elif line == 3:
-            pos_new = 0x14 + pos
-        elif line == 4:
-            pos_new = 0x54 + pos
+        try:
+            if line == 1:
+                pos_new = pos
+            elif line == 2:
+                pos_new = 0x40 + pos
+            elif line == 3:
+                pos_new = 0x14 + pos
+            elif line == 4:
+                pos_new = 0x54 + pos
 
-        self.lcd_write(0x80 + pos_new)
+            self.lcd_write(0x80 + pos_new)
 
-        for char in string:
-            self.lcd_write(ord(char), Rs)
+            for char in string:
+                self.lcd_write(ord(char), Rs)
+        except Exception as e:
+            print(f"Erro ao exibir string no LCD: {e}")
 
     # clear lcd and set to home
     def lcd_clear(self):
-        self.lcd_write(LCD_CLEARDISPLAY)
-        self.lcd_write(LCD_RETURNHOME)
+        try:
+            self.lcd_write(LCD_CLEARDISPLAY)
+            self.lcd_write(LCD_RETURNHOME)
+        except Exception as e:
+            print(f"Erro ao limpar LCD: {e}")
 
     # define backlight on/off (lcd.backlight(1); off= lcd.backlight(0)
     def backlight(self, state): # for state, 1 = on, 0 = off
-        if state == 1:
-            self.lcd_device.write_cmd(LCD_BACKLIGHT)
-        elif state == 0:
-            self.lcd_device.write_cmd(LCD_NOBACKLIGHT)
+        try:
+            if state == 1:
+                self.lcd_device.write_cmd(LCD_BACKLIGHT)
+            elif state == 0:
+                self.lcd_device.write_cmd(LCD_NOBACKLIGHT)
+        except Exception as e:
+            print(f"Erro ao controlar backlight: {e}")
 
     # add custom characters (0 - 7)
     def lcd_load_custom_chars(self, fontdata):
-        self.lcd_write(0x40);
-        for char in fontdata:
-            for line in char:
-                self.lcd_write_char(line) 
+        try:
+            self.lcd_write(0x40)
+            for char in fontdata:
+                for line in char:
+                    self.lcd_write_char(line)
+        except Exception as e:
+            print(f"Erro ao carregar caracteres customizados: {e}")
 
     # put string function with inverted background
     def lcd_display_string_inverter(self, string, line=1, pos=0):
-        if line == 1:
-            pos_new = pos
-        elif line == 2:
-            pos_new = 0x40 + pos
-        elif line == 3:
-            pos_new = 0x14 + pos
-        elif line == 4:
-            pos_new = 0x54 + pos
+        try:
+            if line == 1:
+                pos_new = pos
+            elif line == 2:
+                pos_new = 0x40 + pos
+            elif line == 3:
+                pos_new = 0x14 + pos
+            elif line == 4:
+                pos_new = 0x54 + pos
 
-        self.lcd_write(0x80 + pos_new)
+            self.lcd_write(0x80 + pos_new)
 
-        # Turn off backlight to simulate inverted background
-        self.backlight(0)
-        for char in string:
-            self.lcd_write(ord(char), Rs)
-        # Turn on backlight after writing the string
-        self.backlight(1)
+            # Turn off backlight to simulate inverted background
+            self.backlight(0)
+            for char in string:
+                self.lcd_write(ord(char), Rs)
+            # Turn on backlight after writing the string
+            self.backlight(1)
+        except Exception as e:
+            print(f"Erro ao exibir string invertida: {e}")
 
         
 
