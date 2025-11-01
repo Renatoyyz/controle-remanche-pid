@@ -100,7 +100,7 @@ class LcdThread(threading.Thread):
     def __init__(self, lcd_obj):
         super().__init__(daemon=True)
         self.lcd_obj = lcd_obj
-        self.command_queue = Queue()
+        self.command_queue = Queue(maxsize=20)  # Limita tamanho da fila
         self.running = True
         
     def run(self):
@@ -138,16 +138,24 @@ class LcdThread(threading.Thread):
                 
     def display_string(self, string, line=1, pos=0):
         """Enfileira um comando de exibição de string"""
-        self.command_queue.put({
-            'type': 'display_string',
-            'string': string,
-            'line': line,
-            'pos': pos
-        })
+        try:
+            # Tenta adicionar, mas não bloqueia se a fila estiver cheia
+            self.command_queue.put({
+                'type': 'display_string',
+                'string': string,
+                'line': line,
+                'pos': pos
+            }, block=False)
+        except:
+            # Se a fila estiver cheia, ignora (evita travar o programa)
+            pass
         
     def clear(self):
         """Enfileira um comando de limpeza"""
-        self.command_queue.put({'type': 'clear'})
+        try:
+            self.command_queue.put({'type': 'clear'}, block=False)
+        except:
+            pass
         
     def display_string_inverter(self, string, line=1, pos=0):
         """Enfileira um comando de exibição invertida"""
@@ -190,36 +198,69 @@ if __name__ == "__main__":
     try:
         pot.counter = 1
         pot.val_max = 2
+        
+        # Variáveis de controle para atualização condicional
+        last_tela = -1
+        last_counter = -1
+        last_temp_values = [0] * 6
+        needs_full_redraw = True
+        
         while True:
             try:
+                # Delay para reduzir sobrecarga do LCD e melhorar resposta do encoder
+                time.sleep(0.05)
+                
                 if dado.telas == dado.TELA_INICIAL:
-                    lcd_thread.display_string("**** QUALIFIX **** ", 1, 1)
-                    lcd_thread.display_string("Iniciar", 2, 1)
-                    lcd_thread.display_string("Configuracoes", 3, 1)
-                    if pot.counter == 1:
-                        lcd_thread.display_string(">", 2, 0)
-                        lcd_thread.display_string(" ", 3, 0)
-                    elif pot.counter == 2:
-                        lcd_thread.display_string(">", 3, 0)
-                        lcd_thread.display_string(" ", 2, 0)
+                    # Redesenha apenas se mudou de tela
+                    if last_tela != dado.TELA_INICIAL:
+                        lcd_thread.display_string("**** QUALIFIX **** ", 1, 1)
+                        lcd_thread.display_string("Iniciar", 2, 1)
+                        lcd_thread.display_string("Configuracoes", 3, 1)
+                        last_tela = dado.TELA_INICIAL
+                        last_counter = -1  # Força atualização do cursor
+                    
+                    # Atualiza cursor apenas se mudou
+                    if last_counter != pot.counter:
+                        if pot.counter == 1:
+                            lcd_thread.display_string(">", 2, 0)
+                            lcd_thread.display_string(" ", 3, 0)
+                        elif pot.counter == 2:
+                            lcd_thread.display_string(">", 3, 0)
+                            lcd_thread.display_string(" ", 2, 0)
+                        last_counter = pot.counter
                     if (pot.get_sw_status == 0 and (pot.counter == 1 )) or (pot.counter == 1 and io.io_rpi.get_aciona_maquina == 1):
                         lcd_thread.clear()
                         lcd_thread.display_string("**** AGUARDE ****  ", 1, 1)
                         dado.set_telas(dado.TELA_EXECUCAO)
                         pid.set_control_flag(True)
                         lcd_thread.clear()
+                        last_tela = -1  # Força redesenho
                         time.sleep(0.3)
                     elif pot.get_sw_status == 0 and pot.counter == 2:
                         pot.counter = 1
                         dado.set_telas(dado.TELA_CONFIGURACAO)
                         lcd_thread.clear()
+                        last_tela = -1  # Força redesenho
                         time.sleep(0.3)
 
                 elif dado.telas == dado.TELA_EXECUCAO:
-                    lcd_thread.display_string("Execucao          ", 1, 1)
-                    lcd_thread.display_string(f"1:{pid.value_temp[0]} 4:{pid.value_temp[3]}", 2, 1)
-                    lcd_thread.display_string(f"2:{pid.value_temp[1]} 5:{pid.value_temp[4]}", 3, 1)
-                    lcd_thread.display_string(f"3:{pid.value_temp[2]} 6:{pid.value_temp[5]}", 4, 1)
+                    # Redesenha título apenas se mudou de tela
+                    if last_tela != dado.TELA_EXECUCAO:
+                        lcd_thread.display_string("Execucao          ", 1, 1)
+                        last_tela = dado.TELA_EXECUCAO
+                    
+                    # Atualiza temperaturas apenas se mudaram (tolerância de 1°C)
+                    temp_changed = False
+                    for i in range(6):
+                        if abs(pid.value_temp[i] - last_temp_values[i]) >= 1:
+                            temp_changed = True
+                            break
+                    
+                    if temp_changed:
+                        lcd_thread.display_string(f"1:{pid.value_temp[0]:.0f} 4:{pid.value_temp[3]:.0f}     ", 2, 1)
+                        lcd_thread.display_string(f"2:{pid.value_temp[1]:.0f} 5:{pid.value_temp[4]:.0f}     ", 3, 1)
+                        lcd_thread.display_string(f"3:{pid.value_temp[2]:.0f} 6:{pid.value_temp[5]:.0f}     ", 4, 1)
+                        last_temp_values = pid.value_temp.copy()
 
                     if pot.get_sw_status == 0 or io.io_rpi.get_aciona_maquina == 1:
                         lcd_thread.clear()
@@ -229,55 +270,80 @@ if __name__ == "__main__":
                         pid.set_control_flag(False)
                         lcd_thread.clear()
                         pot.counter = 1
+                        last_tela = -1  # Força redesenho
                         time.sleep(0.3)
 
                 elif dado.telas == dado.TELA_CONFIGURACAO:
                     pot.val_max = 3
-                    lcd_thread.display_string("Configurar:", 1, 1)
-                    lcd_thread.display_string("Temp", 2, 1)
-                    lcd_thread.display_string("PID", 3, 1)
-                    lcd_thread.display_string("Sair", 4, 1)
-                    if pot.get_counter() == 1:
-                        lcd_thread.display_string(">", 2, 0)
-                        lcd_thread.display_string(" ", 3, 0)
-                        lcd_thread.display_string(" ", 4, 0)
-                        if pot.get_sw_status == 0:
+                    
+                    # Redesenha apenas se mudou de tela
+                    if last_tela != dado.TELA_CONFIGURACAO:
+                        lcd_thread.display_string("Configurar:", 1, 1)
+                        lcd_thread.display_string("Temp", 2, 1)
+                        lcd_thread.display_string("PID", 3, 1)
+                        lcd_thread.display_string("Sair", 4, 1)
+                        last_tela = dado.TELA_CONFIGURACAO
+                        last_counter = -1  # Força atualização do cursor
+                    
+                    # Atualiza cursor apenas se mudou
+                    if last_counter != pot.get_counter():
+                        if pot.get_counter() == 1:
+                            lcd_thread.display_string(">", 2, 0)
+                            lcd_thread.display_string(" ", 3, 0)
+                            lcd_thread.display_string(" ", 4, 0)
+                        elif pot.get_counter() == 2:
+                            lcd_thread.display_string(" ", 2, 0)
+                            lcd_thread.display_string(">", 3, 0)
+                            lcd_thread.display_string(" ", 4, 0)
+                        elif pot.get_counter() == 3:
+                            lcd_thread.display_string(" ", 2, 0)
+                            lcd_thread.display_string(" ", 3, 0)
+                            lcd_thread.display_string(">", 4, 0)
+                        last_counter = pot.get_counter()
+                    
+                    if pot.get_sw_status == 0:
+                        if pot.get_counter() == 1:
                             dado.set_telas(TELA_CONFIGURACAO_TEMP)
                             lcd_thread.clear()
+                            last_tela = -1
                             time.sleep(0.3)
-                    elif pot.get_counter() == 2:
-                        lcd_thread.display_string(" ", 2, 0)
-                        lcd_thread.display_string(">", 3, 0)
-                        lcd_thread.display_string(" ", 4, 0)
-                        if pot.get_sw_status == 0:
+                        elif pot.get_counter() == 2:
                             dado.set_telas(TELA_CONFIGURACAO_PID)
                             lcd_thread.clear()
+                            last_tela = -1
                             time.sleep(0.3)
-                    elif pot.get_counter() == 3:
-                        lcd_thread.display_string(" ", 2, 0)
-                        lcd_thread.display_string(" ", 3, 0)
-                        lcd_thread.display_string(">", 4, 0)
-                        if pot.get_sw_status == 0:
+                        elif pot.get_counter() == 3:
                             dado.set_telas(dado.TELA_INICIAL)
                             lcd_thread.clear()
                             pot.counter = 1
+                            last_tela = -1
                             time.sleep(0.3)
 
                 elif dado.telas == TELA_CONFIGURACAO_TEMP:
                     pot.val_max = 6  # Limita a quantidade de canais para ajuste de setpoint
                     canal = pot.get_counter()
-                    lcd_thread.display_string(f"Canal {canal}", 1, 1)
-                    lcd_thread.display_string(f"Temp: {setpoint_list[canal-1]}C", 2, 1)
-                    lcd_thread.display_string("Sair: ", 3, 1)
+                    
+                    # Redesenha apenas se mudou de tela ou canal
+                    if last_tela != TELA_CONFIGURACAO_TEMP or last_counter != canal:
+                        lcd_thread.display_string(f"Canal {canal}          ", 1, 1)
+                        lcd_thread.display_string(f"Temp: {setpoint_list[canal-1]}C   ", 2, 1)
+                        lcd_thread.display_string("Sair:             ", 3, 1)
+                        last_tela = TELA_CONFIGURACAO_TEMP
+                        last_counter = canal
 
                     if pot.get_sw_status == 0:
                         time.sleep(0.6)
                         ajt = 1
                         pot.val_max = 300  # Limita o ajuste de temperatura
                         pot.counter = setpoint_list[canal-1]
+                        last_setpoint = -1
                         while ajt == 1:
-                            setpoint_list[canal-1] = pot.get_counter()
-                            lcd_thread.display_string(f"Temp: {setpoint_list[canal-1]}C", 2, 1)
+                            time.sleep(0.05)  # Delay para reduzir atualizações
+                            current_setpoint = pot.get_counter()
+                            if current_setpoint != last_setpoint:
+                                setpoint_list[canal-1] = current_setpoint
+                                lcd_thread.display_string(f"Temp: {setpoint_list[canal-1]}C   ", 2, 1)
+                                last_setpoint = current_setpoint
                             if pot.get_sw_status == 0:
                                 save_setpoint_to_file(setpoint_list)  # Salva os setpoints ajustados
                                 pid.setpoint_list = setpoint_list  # Atualiza os setpoints no controlador PID
@@ -286,44 +352,65 @@ if __name__ == "__main__":
                                 pot.counter = 1
                                 dado.set_telas(dado.TELA_CONFIGURACAO)
                                 lcd_thread.clear()
+                                last_tela = -1
                                 time.sleep(0.3)
 
                 elif dado.telas == TELA_CONFIGURACAO_PID:
                     pot.val_max = 6  # Limita a quantidade de canais para ajuste de PID
                     canal = pot.get_counter()
-                    lcd_thread.display_string("Ajuste PID", 1, 1)
-                    lcd_thread.display_string(f"Canal {canal}", 2, 1)
-                    lcd_thread.display_string("Kp: {:.2f} Ki: {:.2f}".format(kp_list[canal-1], ki_list[canal-1]), 3, 1)
-                    lcd_thread.display_string("Kd: {:.2f}".format(kd_list[canal-1]), 4, 1)
+                    
+                    # Redesenha apenas se mudou de tela ou canal
+                    if last_tela != TELA_CONFIGURACAO_PID or last_counter != canal:
+                        lcd_thread.display_string("Ajuste PID        ", 1, 1)
+                        lcd_thread.display_string(f"Canal {canal}          ", 2, 1)
+                        lcd_thread.display_string("Kp: {:.2f} Ki: {:.2f}  ".format(kp_list[canal-1], ki_list[canal-1]), 3, 1)
+                        lcd_thread.display_string("Kd: {:.2f}        ".format(kd_list[canal-1]), 4, 1)
+                        last_tela = TELA_CONFIGURACAO_PID
+                        last_counter = canal
 
                     if pot.get_sw_status == 0:
                         time.sleep(0.6)
                         pot.val_max = 4000  # Limita o ajuste de PID
                         ajt = 1
                         lcd_thread.clear()
-                        pot.counter = kp_list[canal-1] * 100
+                        pot.counter = int(kp_list[canal-1] * 100)
+                        last_kp = -1
                         while ajt == 1:
-                            lcd_thread.display_string("Ajuste Kp", 1, 1)
-                            lcd_thread.display_string(f"Kp: {kp_list[canal-1]:.2f}", 2, 1)
-                            kp_list[canal-1] = pot.get_counter() / 100.0
+                            time.sleep(0.05)  # Delay para reduzir atualizações
+                            current_kp = pot.get_counter() / 100.0
+                            if abs(current_kp - last_kp) >= 0.01:
+                                lcd_thread.display_string("Ajuste Kp         ", 1, 1)
+                                lcd_thread.display_string(f"Kp: {current_kp:.2f}        ", 2, 1)
+                                kp_list[canal-1] = current_kp
+                                last_kp = current_kp
                             if pot.get_sw_status == 0:
                                 time.sleep(0.6)
                                 ajt = 2
                                 lcd_thread.clear()
-                                pot.counter = ki_list[canal-1] * 100
+                                pot.counter = int(ki_list[canal-1] * 100)
+                                last_ki = -1
                                 while ajt == 2:
-                                    lcd_thread.display_string("Ajuste Ki", 1, 1)
-                                    lcd_thread.display_string(f"Ki: {ki_list[canal-1]:.2f}", 2, 1)
-                                    ki_list[canal-1] = pot.get_counter() / 100.0
+                                    time.sleep(0.05)  # Delay para reduzir atualizações
+                                    current_ki = pot.get_counter() / 100.0
+                                    if abs(current_ki - last_ki) >= 0.01:
+                                        lcd_thread.display_string("Ajuste Ki         ", 1, 1)
+                                        lcd_thread.display_string(f"Ki: {current_ki:.2f}        ", 2, 1)
+                                        ki_list[canal-1] = current_ki
+                                        last_ki = current_ki
                                     if pot.get_sw_status == 0:
                                         time.sleep(0.6)
                                         ajt = 3
                                         lcd_thread.clear()
-                                        pot.counter = kd_list[canal-1] * 100
+                                        pot.counter = int(kd_list[canal-1] * 100)
+                                        last_kd = -1
                                         while ajt == 3:
-                                            lcd_thread.display_string("Ajuste Kd", 1, 1)
-                                            lcd_thread.display_string(f"Kd: {kd_list[canal-1]:.2f}", 2, 1)
-                                            kd_list[canal-1] = pot.get_counter() / 100.0
+                                            time.sleep(0.05)  # Delay para reduzir atualizações
+                                            current_kd = pot.get_counter() / 100.0
+                                            if abs(current_kd - last_kd) >= 0.01:
+                                                lcd_thread.display_string("Ajuste Kd         ", 1, 1)
+                                                lcd_thread.display_string(f"Kd: {current_kd:.2f}        ", 2, 1)
+                                                kd_list[canal-1] = current_kd
+                                                last_kd = current_kd
                                             if pot.get_sw_status == 0:
                                                 ajt = 0
                                                 pot.val_max = 6  # Limita a quantidade de canais para ajuste de PID
@@ -334,10 +421,8 @@ if __name__ == "__main__":
                                                 pid.kd_list = kd_list
                                                 dado.set_telas(dado.TELA_CONFIGURACAO)
                                                 lcd_thread.clear()
+                                                last_tela = -1
                                                 time.sleep(0.3)
-                
-                # Pequeno delay para não sobrecarregar o CPU
-                time.sleep(0.05)
                 
             except Exception as e:
                 print(f"Erro no loop principal: {e}")
