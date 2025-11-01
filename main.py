@@ -204,6 +204,8 @@ if __name__ == "__main__":
         last_counter = -1
         last_temp_values = [0] * 6
         needs_full_redraw = True
+        blink_counter = 0  # Contador para efeito de piscar
+        blink_state = True  # Estado do caractere piscante
         
         while True:
             try:
@@ -244,10 +246,22 @@ if __name__ == "__main__":
                         time.sleep(0.3)
 
                 elif dado.telas == dado.TELA_EXECUCAO:
-                    # Redesenha título apenas se mudou de tela
+                    # Atualiza contador de piscar (a cada 10 ciclos = ~500ms)
+                    blink_counter += 1
+                    if blink_counter >= 10:
+                        blink_counter = 0
+                        blink_state = not blink_state
+                    
+                    # Redesenha título com caractere piscante
                     if last_tela != dado.TELA_EXECUCAO:
-                        lcd_thread.display_string("Execucao          ", 1, 1)
+                        blink_char = "*" if blink_state else " "
+                        lcd_thread.display_string(f"{blink_char}Execucao          ", 1, 0)
                         last_tela = dado.TELA_EXECUCAO
+                    else:
+                        # Atualiza apenas o caractere piscante (posição 0)
+                        if blink_counter == 0:  # Só atualiza quando muda de estado
+                            blink_char = "*" if blink_state else " "
+                            lcd_thread.display_string(blink_char, 1, 0)
                     
                     # Atualiza temperaturas apenas se mudaram (tolerância de 1°C)
                     temp_changed = False
@@ -271,6 +285,8 @@ if __name__ == "__main__":
                         lcd_thread.clear()
                         pot.counter = 1
                         last_tela = -1  # Força redesenho
+                        blink_counter = 0  # Reseta contador de piscar
+                        blink_state = True  # Reseta estado de piscar
                         time.sleep(0.3)
 
                 elif dado.telas == dado.TELA_CONFIGURACAO:
