@@ -379,24 +379,24 @@ if __name__ == "__main__":
                     if last_tela != TELA_CONFIGURACAO_PID or last_counter != canal:
                         lcd_thread.display_string("Ajuste PID        ", 1, 1)
                         lcd_thread.display_string(f"Canal {canal}          ", 2, 1)
-                        lcd_thread.display_string("Kp: {:.2f} Ki: {:.2f}  ".format(kp_list[canal-1], ki_list[canal-1]), 3, 1)
+                        lcd_thread.display_string("Kp: {:.0f} Ki: {:.2f}  ".format(kp_list[canal-1], ki_list[canal-1]), 3, 1)
                         lcd_thread.display_string("Kd: {:.2f}        ".format(kd_list[canal-1]), 4, 1)
                         last_tela = TELA_CONFIGURACAO_PID
                         last_counter = canal
 
                     if pot.get_sw_status == 0:
                         time.sleep(0.6)
-                        pot.val_max = 4000  # Limita o ajuste de PID
+                        pot.val_max = 200  # Limita o ajuste de Kp (0-200)
                         ajt = 1
                         lcd_thread.clear()
-                        pot.counter = int(kp_list[canal-1] * 100)
+                        pot.counter = int(kp_list[canal-1])
                         last_kp = -1
                         while ajt == 1:
                             time.sleep(0.05)  # Delay para reduzir atualizações
-                            current_kp = pot.get_counter() / 100.0
-                            if abs(current_kp - last_kp) >= 0.01:
+                            current_kp = float(pot.get_counter())
+                            if current_kp != last_kp:
                                 lcd_thread.display_string("Ajuste Kp         ", 1, 1)
-                                lcd_thread.display_string(f"Kp: {current_kp:.2f}        ", 2, 1)
+                                lcd_thread.display_string(f"Kp: {current_kp:.0f}        ", 2, 1)
                                 kp_list[canal-1] = current_kp
                                 last_kp = current_kp
                             if pot.get_sw_status == 0:
